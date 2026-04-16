@@ -14,18 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import json
 from typing import Any, Protocol, TypedDict
 
 from pydantic import BaseModel, Field
 
+from graphiti_core.utils.text_utils import MAX_SUMMARY_CHARS
+
 from .models import Message, PromptFunction, PromptVersion
+from .prompt_helpers import to_prompt_json
+from .snippets import summary_instructions
 
 
 class Summary(BaseModel):
     summary: str = Field(
         ...,
-        description='Summary containing the important information about the entity. Under 250 words',
+        description=(
+            f'Summary containing the important information about the entity. '
+            f'Under {MAX_SUMMARY_CHARS} characters'
+        ),
     )
 
 
@@ -49,17 +55,23 @@ def summarize_pair(context: dict[str, Any]) -> list[Message]:
     return [
         Message(
             role='system',
-            content='You are a helpful assistant that combines summaries.',
+            content='You are a helpful assistant that combines summaries into a single dense factual summary.',
         ),
         Message(
             role='user',
             content=f"""
-        Synthesize the information from the following two summaries into a single succinct summary.
-        
-        Summaries must be under 250 words.
+        Synthesize the information from the following two summaries into a single information-dense summary.
+
+        IMPORTANT:
+        - Preserve all materially relevant names, roles, places, dates, counts, and changes over time that are explicitly supported.
+        - Prefer compact factual sentences over vague thematic phrasing.
+        - When the durable fact is the content of what was said, state the content directly instead of narrating that it was said.
+        - Use communication verbs only when the act of speaking, asking, sharing, presenting, or announcing is itself the important fact.
+        - Avoid filler verbs like "mentioned", "described", "stated", "reported", "noted", "discussed", "referenced", and "indicated" unless the communication act itself matters.
+        - SUMMARIES MUST BE LESS THAN {MAX_SUMMARY_CHARS} CHARACTERS.
 
         Summaries:
-        {json.dumps(context['node_summaries'], indent=2)}
+        {to_prompt_json(context['node_summaries'])}
         """,
         ),
     ]
@@ -69,38 +81,35 @@ def summarize_context(context: dict[str, Any]) -> list[Message]:
     return [
         Message(
             role='system',
-            content='You are a helpful assistant that extracts entity properties from the provided text.',
+            content='You are a helpful assistant that generates detailed, information-dense summaries and attributes from provided text.',
         ),
         Message(
             role='user',
             content=f"""
-            
-        <MESSAGES>
-        {json.dumps(context['previous_episodes'], indent=2)}
-        {json.dumps(context['episode_content'], indent=2)}
-        </MESSAGES>
-        
-        Given the above MESSAGES and the following ENTITY name, create a summary for the ENTITY. Your summary must only use
+        Given the MESSAGES and the ENTITY name, create a summary for the ENTITY. Your summary must only use
         information from the provided MESSAGES. Your summary should also only contain information relevant to the
-        provided ENTITY. Summaries must be under 250 words.
-        
+        provided ENTITY.
+
         In addition, extract any values for the provided entity properties based on their descriptions.
         If the value of the entity property cannot be found in the current context, set the value of the property to the Python value None.
-        
-        Guidelines:
-        1. Do not hallucinate entity property values if they cannot be found in the current context.
-        2. Only use the provided messages, entity, and entity context to set attribute values.
-        
+
+        {summary_instructions}
+
+        <MESSAGES>
+        {to_prompt_json(context['previous_episodes'])}
+        {to_prompt_json(context['episode_content'])}
+        </MESSAGES>
+
         <ENTITY>
         {context['node_name']}
         </ENTITY>
-        
+
         <ENTITY CONTEXT>
         {context['node_summary']}
         </ENTITY CONTEXT>
-        
+
         <ATTRIBUTES>
-        {json.dumps(context['attributes'], indent=2)}
+        {to_prompt_json(context['attributes'])}
         </ATTRIBUTES>
         """,
         ),
@@ -117,10 +126,10 @@ def summary_description(context: dict[str, Any]) -> list[Message]:
             role='user',
             content=f"""
         Create a short one sentence description of the summary that explains what kind of information is summarized.
-        Summaries must be under 250 words.
+        Summaries must be under {MAX_SUMMARY_CHARS} characters.
 
         Summary:
-        {json.dumps(context['summary'], indent=2)}
+        {to_prompt_json(context['summary'])}
         """,
         ),
     ]

@@ -73,3 +73,23 @@ class EntityTypeValidationError(GraphitiError):
     def __init__(self, entity_type: str, entity_type_attribute: str):
         self.message = f'{entity_type_attribute} cannot be used as an attribute for {entity_type} as it is a protected attribute name.'
         super().__init__(self.message)
+
+
+class GroupIdValidationError(GraphitiError):
+    """Raised when a group_id contains invalid characters."""
+
+    def __init__(self, group_id: str):
+        self.message = f'group_id "{group_id}" must contain only alphanumeric characters, dashes, or underscores'
+        super().__init__(self.message)
+
+
+class NodeLabelValidationError(GraphitiError, ValueError):
+    """Raised when a node label contains invalid characters."""
+
+    def __init__(self, node_labels: list[str]):
+        label_list = ', '.join(f'"{label}"' for label in node_labels)
+        self.message = (
+            'node_labels must start with a letter or underscore and contain only '
+            f'alphanumeric characters or underscores: {label_list}'
+        )
+        super().__init__(self.message)

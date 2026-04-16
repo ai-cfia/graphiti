@@ -16,8 +16,8 @@ limitations under the License.
 
 from enum import Enum
 
-DEFAULT_MAX_TOKENS = 8192
-DEFAULT_TEMPERATURE = 0
+DEFAULT_MAX_TOKENS = 16384
+DEFAULT_TEMPERATURE = 1
 
 
 class ModelSize(Enum):
